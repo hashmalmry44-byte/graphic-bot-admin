@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة تحكم قسم الجرافيك</title>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:#101522;
+  color:white;
+}
+
+.container{
+  max-width:700px;
+  margin:auto;
+  padding:20px;
+}
+
+.card{
+  background:#192235;
+  padding:20px;
+  border-radius:16px;
+  margin-bottom:20px;
+}
+
+h1,h2{
+  text-align:center;
+}
+
+input,select,button{
+  width:100%;
+  box-sizing:border-box;
+  padding:13px;
+  margin-top:10px;
+  border-radius:10px;
+  border:1px solid #39445c;
+  font-size:16px;
+}
+
+button{
+  background:#d4af37;
+  color:#111;
+  border:none;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+.item{
+  background:#222d42;
+  padding:12px;
+  border-radius:10px;
+  margin-top:8px;
+}
+
+.hidden{
+  display:none;
+}
+
+.message{
+  padding:12px;
+  border-radius:10px;
+  margin-bottom:15px;
+  background:#173d2a;
+}
+
+.error{
+  background:#4a2020;
+}
+
+.small{
+  color:#b8c0d0;
+  font-size:13px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🎨 لوحة تحكم قسم الجرافيك</h1>
+
+<div id="loginCard" class="card">
+
+<h2>🔐 دخول الإدارة</h2>
+
+<input
+  id="password"
+  type="password"
+  placeholder="كلمة مرور الإدارة"
+>
+
+<button onclick="login()">
+دخول
+</button>
+
+</div>
+
+<div id="panel" class="hidden">
+
+<div id="message"></div>
+
+<div class="card">
+
+<h2>📚 إضافة مادة</h2>
+
+<input
+  id="subjectName"
+  type="text"
+  placeholder="مثال: التصميم الجرافيكي"
+>
+
+<button onclick="addSubject()">
+➕ إضافة المادة
+</button>
+
+</div>
+
+<div class="card">
+
+<h2>📄 إضافة ملف PDF</h2>
+
+<select id="subjectSelect">
+<option value="">اختر المادة</option>
+</select>
+
+<input
+  id="title"
+  type="text"
+  placeholder="عنوان الملف"
+>
+
+<select id="type">
+<option value="lecture">📚 محاضرة</option>
+<option value="summary">📝 ملخص</option>
+<option value="reference">📑 مرجع</option>
+</select>
+
+<input
+  id="file"
+  type="file"
+  accept=".pdf,application/pdf"
+>
+
+<button onclick="uploadMaterial()">
+📤 رفع وإضافة الملف
+</button>
+
+</div>
+
+<div class="card">
+
+<h2>📂 الملفات الموجودة</h2>
+
+<div id="materials">
+جاري التحميل...
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<script>
+
+const API =
+"https://ueqhcfxxhupdesseenjh.supabase.co/functions/v1/admin-panel";
+
+let adminPassword = "";
+
+function showMessage(text, error=false){
+
+  const box =
+    document.getElementById("message");
+
+  box.className =
+    error ? "message error" : "message";
+
+  box.textContent = text;
+}
+
+async function api(options = {}){
+
+  const headers =
+    options.headers || {};
+
+  headers["x-admin-password"] =
+    adminPassword;
+
+  return fetch(API, {
+    ...options,
+    headers
+  });
+}
+
+async function login(){
+
+  const password =
+    document.getElementById("password").value;
+
+  if(!password){
+    alert("اكتب كلمة المرور");
+    return;
+  }
+
+  adminPassword = password;
+
+  try{
+
+    const response =
+      await api();
+
+    const data =
+      await response.json();
+
+    if(!response.ok || !data.ok){
+
+      adminPassword = "";
+
+      alert(
+        data.error ||
+        "كلمة المرور غير صحيحة"
+      );
+
+      return;
+    }
+
+    document
+      .getElementById("loginCard")
+      .classList.add("hidden");
+
+    document
+      .getElementById("panel")
+      .classList.remove("hidden");
+
+    loadData();
+
+  }catch(error){
+
+    alert(
+      "تعذر الاتصال بالخادم"
+    );
+  }
+}
+
+async function loadData(){
+
+  try{
+
+    const response =
+      await api();
+
+    const data =
+      await response.json();
+
+    if(!response.ok || !data.ok){
+
+      showMessage(
+        data.error ||
+        "تعذر تحميل البيانات",
+        true
+      );
+
+      return;
+    }
+
+    const select =
+      document.getElementById(
+        "subjectSelect"
+      );
+
+    select.innerHTML =
+      '<option value="">اختر المادة</option>';
+
+    data.subjects.forEach(subject => {
+
+      const option =
+        document.createElement("option");
+
+      option.value =
+        subject.id;
+
+      option.textContent =
+        subject.name;
+
+      select.appendChild(option);
+    });
+
+    const materials =
+      document.getElementById(
+        "materials"
+      );
+
+    materials.innerHTML = "";
+
+    if(data.materials.length === 0){
+
+      materials.textContent =
+        "لا توجد ملفات حتى الآن.";
+
+      return;
+    }
+
+    data.materials.forEach(material => {
+
+      const div =
+        document.createElement("div");
+
+      div.className = "item";
+
+      const typeNames = {
+        lecture: "📚 محاضرة",
+        summary: "📝 ملخص",
+        reference: "📑 مرجع"
+      };
+
+      div.innerHTML = `
+        <b>📄 ${escapeHtml(material.title)}</b>
+        <div class="small">
+          ${typeNames[material.type] || material.type}
+        </div>
+        <button
+          onclick="deleteMaterial(${material.id})"
+        >
+          🗑️ حذف
+        </button>
+      `;
+
+      materials.appendChild(div);
+    });
+
+  }catch(error){
+
+    showMessage(
+      "تعذر الاتصال بالخادم",
+      true
+    );
+  }
+}
+
+async function addSubject(){
+
+  const name =
+    document
+      .getElementById("subjectName")
+      .value
+      .trim();
+
+  if(!name){
+
+    showMessage(
+      "اكتب اسم المادة",
+      true
+    );
+
+    return;
+  }
+
+  const form =
+    new FormData();
+
+  form.append(
+    "action",
+    "subject"
+  );
+
+  form.append(
+    "name",
+    name
+  );
+
+  const response =
+    await api({
+      method:"POST",
+      body:form
+    });
+
+  const data =
+    await response.json();
+
+  if(!response.ok || !data.ok){
+
+    showMessage(
+      data.error ||
+      "تعذر إضافة المادة",
+      true
+    );
+
+    return;
+  }
+
+  document
+    .getElementById("subjectName")
+    .value = "";
+
+  showMessage(
+    "✅ تمت إضافة المادة بنجاح"
+  );
+
+  loadData();
+}
+
+async function uploadMaterial(){
+
+  const subjectId =
+    document
+      .getElementById("subjectSelect")
+      .value;
+
+  const title =
+    document
+      .getElementById("title")
+      .value
+      .trim();
+
+  const type =
+    document
+      .getElementById("type")
+      .value;
+
+  const file =
+    document
+      .getElementById("file")
+      .files[0];
+
+  if(!subjectId){
+
+    showMessage(
+      "اختر المادة",
+      true
+    );
+
+    return;
+  }
+
+  if(!title){
+
+    showMessage(
+      "اكتب عنوان الملف",
+      true
+    );
+
+    return;
+  }
+
+  if(!file){
+
+    showMessage(
+      "اختر ملف PDF",
+      true
+    );
+
+    return;
+  }
+
+  if(file.type !== "application/pdf"){
+
+    showMessage(
+      "الملف يجب أن يكون PDF",
+      true
+    );
+
+    return;
+  }
+
+  showMessage(
+    "⏳ جاري رفع الملف..."
+  );
+
+  const form =
+    new FormData();
+
+  form.append(
+    "action",
+    "material"
+  );
+
+  form.append(
+    "subject_id",
+    subjectId
+  );
+
+  form.append(
+    "title",
+    title
+  );
+
+  form.append(
+    "type",
+    type
+  );
+
+  form.append(
+    "file",
+    file
+  );
+
+  const response =
+    await api({
+      method:"POST",
+      body:form
+    });
+
+  const data =
+    await response.json();
+
+  if(!response.ok || !data.ok){
+
+    showMessage(
+      data.error ||
+      "فشل رفع الملف",
+      true
+    );
+
+    return;
+  }
+
+  document
+    .getElementById("title")
+    .value = "";
+
+  document
+    .getElementById("file")
+    .value = "";
+
+  showMessage(
+    "✅ تم رفع الملف وإضافته بنجاح"
+  );
+
+  loadData();
+}
+
+async function deleteMaterial(id){
+
+  if(!confirm(
+    "هل تريد حذف هذا الملف؟"
+  )){
+    return;
+  }
+
+  const form =
+    new FormData();
+
+  form.append(
+    "action",
+    "delete_material"
+  );
+
+  form.append(
+    "id",
+    id
+  );
+
+  const response =
+    await api({
+      method:"POST",
+      body:form
+    });
+
+  const data =
+    await response.json();
+
+  if(!response.ok || !data.ok){
+
+    showMessage(
+      data.error ||
+      "تعذر حذف الملف",
+      true
+    );
+
+    return;
+  }
+
+  showMessage(
+    "✅ تم حذف الملف"
+  );
+
+  loadData();
+}
+
+function escapeHtml(text){
+
+  const div =
+    document.createElement("div");
+
+  div.textContent = text;
+
+  return div.innerHTML;
+}
+
+</script>
+
+</body>
+</html>
